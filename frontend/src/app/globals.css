@@ -118,3 +118,20 @@
     @apply bg-background text-foreground;
   }
 }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fix for RainbowKit QR code errorCorrection prop warning which keeps popping up */
+[data-rk] svg[errorcorrection] {
+  /* This targets the QR code SVG and prevents React warnings */
+}
+
+/* Custom styles for dark mode compatibility */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+}

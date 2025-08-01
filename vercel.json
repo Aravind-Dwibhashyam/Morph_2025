@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "name": "safespend-morph-dapp",
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "frontend/$1"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_CHAIN_ID": "2810",
+    "NEXT_PUBLIC_RPC_URL": "https://rpc-quicknode-holesky.morphl2.io",
+    "NEXT_PUBLIC_EXPLORER_URL": "https://explorer-holesky.morphl2.io"
+  },
+  "build": {
+    "env": {
+      "NEXT_TELEMETRY_DISABLED": "1"
+    }
+  }
+}
