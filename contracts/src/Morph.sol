@@ -56,12 +56,12 @@ contract FamilySharedWallet {
     event ParentAdded(uint256 indexed familyId, address indexed parent, address indexed addedBy);
     event ChildAdded(uint256 indexed familyId, address indexed child, address indexed addedBy);
     event ChildRemoved(uint256 indexed familyId, address indexed child, address indexed removedBy);
-    event LimitSet(uint256 indexed familyId, address indexed child, Category indexed category, uint256 amount, address indexed setBy);
-    event VendorAdded(uint256 indexed familyId, address indexed vendor, Category indexed category, address indexed addedBy);
+    event LimitSet(uint256 indexed familyId, address indexed child, Category indexed category, uint256 amount, address setBy);
+    event VendorAdded(uint256 indexed familyId, address indexed vendor, Category indexed category, address addedBy);
     event VendorRemoved(uint256 indexed familyId, address indexed vendor, address indexed removedBy);
-    event PaymentMade(uint256 indexed familyId, address indexed child, address indexed vendor, uint256 amount, Category indexed category);
-    event EmergencyPayment(uint256 indexed familyId, address indexed child, address indexed vendor, uint256 amount, Category indexed category);
-    event TransactionLogged(uint256 indexed familyId, address indexed child, address indexed vendor, uint256 amount, Category indexed category, bool emergency, uint256 timestamp);
+    event PaymentMade(uint256 indexed familyId, address indexed child, address indexed vendor, uint256 amount, Category category);
+    event EmergencyPayment(uint256 indexed familyId, address indexed child, address indexed vendor, uint256 amount, Category category);
+    event TransactionLogged(uint256 indexed familyId, address indexed child, address indexed vendor, uint256 amount, Category category, bool emergency, uint256 timestamp);
     event LimitsReset(uint256 indexed familyId, address indexed child, uint256 resetTime);
     event FundsWithdrawn(uint256 indexed familyId, address indexed to, uint256 amount, address indexed withdrawnBy);
     event ContractPaused();
