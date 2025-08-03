@@ -118,9 +118,6 @@
     @apply bg-background text-foreground;
   }
 }
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 /* Fix for RainbowKit QR code errorCorrection prop warning which keeps popping up */
 [data-rk] svg[errorcorrection] {
