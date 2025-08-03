@@ -39,6 +39,7 @@ contract FamilySharedWallet {
         address[] parents;
         address[] children;
         address[] approvedVendors;
+        uint256 familyBalance;
     }
 
     uint256 public nextFamilyId;
@@ -66,6 +67,7 @@ contract FamilySharedWallet {
     event FundsWithdrawn(uint256 indexed familyId, address indexed to, uint256 amount, address indexed withdrawnBy);
     event ContractPaused();
     event ContractUnpaused();
+    event FundsAdded(uint256 indexed familyId, address indexed from, uint256 amount);
 
     error OnlyParent();
     error OnlyChild();
@@ -126,8 +128,9 @@ contract FamilySharedWallet {
         nextFamilyId = 1; // to assign the family ID from 1
     }
 
-    function createFamily() external returns (uint256 familyId) {
+    function createFamily() external payable returns (uint256 familyId) {
         if (userToFamily[msg.sender] != 0) revert UserAlreadyInFamily();
+        require(msg.value >= 0.05 ether, "Not Enough Amount");
         
         familyId = nextFamilyId++;
         
@@ -138,7 +141,8 @@ contract FamilySharedWallet {
             createdAt: uint32(block.timestamp),
             parents: new address[](0),
             children: new address[](0),
-            approvedVendors: new address[](0)
+            approvedVendors: new address[](0),
+            familyBalance: 0
         });
 
         // Add creator as the first parent
@@ -157,6 +161,14 @@ contract FamilySharedWallet {
 
         emit FamilyCreated(familyId, msg.sender);
     }
+
+    function addFunds(uint256 familyId) external payable validFamily(familyId) onlyParentInFamily(familyId){
+        require(msg.value > 0, "Must send Ether");
+        // Update family and contract balance
+        families[familyId].familyBalance += msg.value;
+        emit FundsAdded(familyId, msg.sender, msg.value);
+    }
+
 
     function addParentToFamily(uint256 familyId, address newParent) external validFamily(familyId) onlyParentInFamily(familyId) {
         if (userToFamily[newParent] != 0) revert UserAlreadyInFamily();
@@ -262,6 +274,7 @@ contract FamilySharedWallet {
 
     function makePayment(address vendor) external payable validAmount(msg.value) notPaused {
         uint256 familyId = userToFamily[msg.sender];
+        require(families[familyId].familyBalance >= msg.value, "Insufficient family funds");
         if (familyId == 0) revert UserNotInFamily();
         if (!familyUsers[familyId][msg.sender].isChild || !familyUsers[familyId][msg.sender].isActive) {
             revert OnlyActiveChild();
@@ -281,6 +294,9 @@ contract FamilySharedWallet {
         spending.spent += uint128(msg.value);
         familyUsers[familyId][msg.sender].totalSpent += uint128(msg.value);
 
+        families[familyId].familyBalance -= msg.value;
+        spending.spent += uint128(msg.value);
+
         (bool success, ) = vendor.call{value: msg.value}("");
         if (!success) revert TransferFailed();
 
@@ -290,6 +306,7 @@ contract FamilySharedWallet {
 
     function makeEmergencyPayment(address vendor) external payable validAmount(msg.value) notPaused {
         uint256 familyId = userToFamily[msg.sender];
+        require(families[familyId].familyBalance >= msg.value, "Insufficient family funds");
         if (familyId == 0) revert UserNotInFamily();
         if (!familyUsers[familyId][msg.sender].isChild || !familyUsers[familyId][msg.sender].isActive) {
             revert OnlyActiveChild();
@@ -303,7 +320,7 @@ contract FamilySharedWallet {
 
         (bool success, ) = vendor.call{value: msg.value}("");
         if (!success) revert TransferFailed();
-
+        families[familyId].familyBalance -= msg.value;
         emit EmergencyPayment(familyId, msg.sender, vendor, msg.value, category);
         emit TransactionLogged(familyId, msg.sender, vendor, msg.value, category, true, block.timestamp);
     }

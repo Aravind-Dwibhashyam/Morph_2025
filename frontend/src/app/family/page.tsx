@@ -1,281 +1,238 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { useFamilyWallet } from '@/hooks/useContract';
-import { Plus, UserMinus, Settings, Shield } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { isAddress, Abi } from 'viem';
+import { motion, AnimatePresence } from 'framer-motion';
 
-interface FamilyMember {
-  address: string;
-  name: string;
-  role: 'parent' | 'child';
-  totalSpent: number;
-  monthlyLimit: number;
-  joinedDate: string;
+import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
+
+
+type Member = {
+  address: `0x${string}`;
+  role: 'Parent' | 'Child';
+};
+
+type AddChildModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  onAddChild: (childAddress: `0x${string}`) => void;
+  isProcessing: boolean; // Combined state for pending and confirming
+  statusMessage: string; // To show detailed status
+};
+
+// --- HOOK: useFamilyMembers ---
+// This hook fetches and processes the list of family members from the smart contract.
+function useFamilyMembers() {
+  const { address: connectedAddress } = useAccount();
+  const FamilySharedWalletABI = FamilySharedWalletJSON.abi;
+  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+
+  // 1. Get the family ID for the current user.
+  const { data: familyId, isLoading: isLoadingFamilyId } = useReadContract({
+    account: connectedAddress,
+    address: contractAddress,
+    abi: FamilySharedWalletABI,
+    functionName: 'getUserFamily',
+    args: [connectedAddress],
+    query: { enabled: !!connectedAddress },
+  });
+
+  // 2. Get the list of parents.
+  const { data: parents, isLoading: isLoadingParents, refetch: refetchParents } = useReadContract({
+    account: connectedAddress,
+    address: contractAddress,
+    abi: FamilySharedWalletABI,
+    functionName: 'getFamilyParents',
+    args: [familyId],
+    query: { enabled: !!familyId && Number(familyId) > 0 },
+  });
+
+  // 3. Get the list of children.
+  const { data: children, isLoading: isLoadingChildren, refetch: refetchChildren } = useReadContract({
+    account: connectedAddress,
+    address: contractAddress,
+    abi: FamilySharedWalletABI,
+    functionName: 'getFamilyChildren',
+    args: [familyId],
+    query: { enabled: !!familyId && Number(familyId) > 0 },
+  });
+
+  // 4. Combine parents and children into a single list for display.
+  const members = useMemo(() => {
+    const parentMembers: Member[] = (parents as `0x${string}`[] || []).map(p => ({ address: p, role: 'Parent' }));
+    const childMembers: Member[] = (children as `0x${string}`[] || []).map(c => ({ address: c, role: 'Child' }));
+    return [...parentMembers, ...childMembers];
+  }, [parents, children]);
+
+  const loading = isLoadingFamilyId || isLoadingParents || isLoadingChildren;
+
+  const refetchMembers = () => {
+    refetchParents();
+    refetchChildren();
+  };
+
+  return { members, familyId, loading, refetchMembers, userHasFamily: !!familyId && Number(familyId) > 0 };
 }
 
-export default function FamilyManagement() {
-  const { familyMembers, addChild, removeChild, setLimit, loading } = useFamilyWallet();
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showLimitForm, setShowLimitForm] = useState<string | null>(null);
+// --- UI COMPONENT: AddChildModal ---
+// A modal dialog for adding a new child's address.
+const AddChildModal = ({ isOpen, onClose, onAddChild, isProcessing, statusMessage }: AddChildModalProps) => {
+  const [childAddress, setChildAddress] = useState('');
+  const [error, setError] = useState('');
 
-  const handleAddChild = async (childAddress: string) => {
-    try {
-      await addChild(childAddress);
-      setShowAddForm(false);
-    } catch (error) {
-      console.error('Error adding child:', error);
+  const handleSubmit = () => {
+    if (!isAddress(childAddress)) {
+      setError('Please enter a valid Ethereum address.');
+      return;
     }
-  };
-
-  const handleRemoveChild = async (childAddress: string) => {
-    try {
-      await removeChild(childAddress);
-    } catch (error) {
-      console.error('Error removing child:', error);
-    }
-  };
-
-  const handleSetLimit = async (childAddress: string, category: number, amount: number) => {
-    try {
-      await setLimit(childAddress, category, amount);
-      setShowLimitForm(null);
-    } catch (error) {
-      console.error('Error setting limit:', error);
-    }
+    setError('');
+    onAddChild(childAddress as `0x${string}`);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <div className="container mx-auto px-6 py-8">
-        {/* Header */}
+    <AnimatePresence>
+      {isOpen && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+          onClick={onClose}
         >
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2">
-                Family Management 👨‍👩‍👧‍👦
-              </h1>
-              <p className="text-slate-300">
-                Manage your family members and their spending limits
-              </p>
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            className="bg-slate-800 rounded-2xl p-8 border border-white/20 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-bold text-white mb-4">Add Family Member</h2>
+            <p className="text-slate-400 mb-6">Enter the wallet address of the child you want to add.</p>
+            <input
+              type="text"
+              value={childAddress}
+              onChange={(e) => setChildAddress(e.target.value)}
+              placeholder="0x..."
+              className="w-full bg-slate-700 text-white rounded-lg p-3 mb-2 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+            <div className="flex justify-end gap-4 mt-6">
+              <button onClick={onClose} className="text-slate-300 hover:text-white transition-colors px-4 py-2 rounded-lg">Cancel</button>
+              <button onClick={handleSubmit} disabled={isProcessing} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-6 py-2 rounded-lg transition-colors disabled:bg-slate-500">
+                {statusMessage}
+              </button>
             </div>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-colors"
-            >
-              <Plus size={20} />
-              Add Child
-            </button>
-          </div>
+          </motion.div>
         </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
-        {/* Family Members Grid */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          {familyMembers?.map((member, index) => (
-            <div
-              key={member.address}
-              className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 p-6"
-            >
-              {/* Member Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    {member.role === 'parent' ? <Shield size={24} /> : '👤'}
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold">{member.name}</h3>
-                    <p className="text-slate-400 text-sm capitalize">{member.role}</p>
-                  </div>
-                </div>
-                {member.role === 'child' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowLimitForm(member.address)}
-                      className="text-blue-400 hover:text-blue-300 p-1"
-                      title="Set Limits"
-                    >
-                      <Settings size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleRemoveChild(member.address)}
-                      className="text-red-400 hover:text-red-300 p-1"
-                      title="Remove Child"
-                    >
-                      <UserMinus size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Member Stats */}
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Address:</span>
-                  <span className="text-white text-sm font-mono">
-                    {member.address.slice(0, 6)}...{member.address.slice(-4)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Total Spent:</span>
-                  <span className="text-white">${member.totalSpent}</span>
-                </div>
-                {member.role === 'child' && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Monthly Limit:</span>
-                    <span className="text-white">${member.monthlyLimit}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Joined:</span>
-                  <span className="text-white">{member.joinedDate}</span>
-                </div>
-              </div>
-
-              {/* Progress Bar for Children */}
-              {member.role === 'child' && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-400">Spending Progress</span>
-                    <span className="text-white">
-                      {Math.round((member.totalSpent / member.monthlyLimit) * 100)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.min((member.totalSpent / member.monthlyLimit) * 100, 100)}%`
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Add Child Modal */}
-        {showAddForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 p-6 w-full max-w-md mx-4"
-            >
-              <h2 className="text-xl font-bold text-white mb-4">Add New Child</h2>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.target as HTMLFormElement);
-                  handleAddChild(formData.get('address') as string);
-                }}
-              >
-                <div className="mb-4">
-                  <label className="block text-slate-300 mb-2">Child Address</label>
-                  <input
-                    name="address"
-                    type="text"
-                    required
-                    placeholder="0x..."
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl transition-colors disabled:opacity-50"
-                  >
-                    {loading ? 'Adding...' : 'Add Child'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {/* Set Limit Modal */}
-        {showLimitForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 p-6 w-full max-w-md mx-4"
-            >
-              <h2 className="text-xl font-bold text-white mb-4">Set Spending Limits</h2>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const formData = new FormData(e.target as HTMLFormElement);
-                  handleSetLimit(
-                    showLimitForm,
-                    parseInt(formData.get('category') as string),
-                    parseFloat(formData.get('amount') as string)
-                  );
-                }}
-              >
-                <div className="mb-4">
-                  <label className="block text-slate-300 mb-2">Category</label>
-                  <select
-                    name="category"
-                    required
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="0">Food & Dining</option>
-                    <option value="1">Education</option>
-                    <option value="2">Entertainment</option>
-                    <option value="3">Transport</option>
-                    <option value="4">Others</option>
-                  </select>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-slate-300 mb-2">Monthly Limit ($)</label>
-                  <input
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="100.00"
-                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl transition-colors disabled:opacity-50"
-                  >
-                    {loading ? 'Setting...' : 'Set Limit'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowLimitForm(null)}
-                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
+// --- UI COMPONENT: MemberRow ---
+// Displays a single family member's information.
+const MemberRow = ({ address, role }: Member) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="flex items-center justify-between bg-white/5 p-4 rounded-xl"
+  >
+    <div className="flex items-center gap-4">
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${role === 'Parent' ? 'bg-blue-500/20' : 'bg-green-500/20'}`}>
+        <span className="text-2xl">{role === 'Parent' ? '👑' : '🧑‍'}</span>
+      </div>
+      <div>
+        <p className={`font-bold ${role === 'Parent' ? 'text-blue-300' : 'text-green-300'}`}>{role}</p>
+        <p className="text-sm text-slate-400 font-mono truncate">{address}</p>
       </div>
     </div>
+    <button className="text-slate-400 hover:text-white text-xl">...</button>
+  </motion.div>
+);
+
+
+// --- PAGE: Family ---
+export default function FamilyPage() {
+  const { members, familyId, loading, refetchMembers, userHasFamily } = useFamilyMembers();
+  const { address: connectedAddress } = useAccount();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [hash, setHash] = useState<`0x${string}`>();
+
+  const { writeContract, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+
+  useEffect(() => {
+    if (isConfirmed) {
+      refetchMembers();
+      setIsModalOpen(false);
+      setHash(undefined); // Reset hash after success
+    }
+  }, [isConfirmed, refetchMembers]);
+
+  const handleAddChild = (childAddress: `0x${string}`) => {
+    if (!familyId) return;
+    writeContract({
+      account: connectedAddress,
+      address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
+      abi: FamilySharedWalletJSON.abi,
+      functionName: 'addChildToFamily',
+      args: [familyId, childAddress],
+    }, {
+      onSuccess: (sentHash) => {
+        setHash(sentHash);
+      }
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-400"></div>
+      </div>
+    );
+  }
+  
+  if (!userHasFamily) {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center text-white p-4 text-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+            <h1 className="text-4xl font-bold mb-4">No Family Found</h1>
+            <p className="text-slate-300 mb-8 max-w-md">Please create or join a family from the dashboard to manage members.</p>
+        </div>
+    )
+  }
+
+  const isProcessing = isPending || isConfirming;
+  const statusMessage = isPending ? 'Submitting...' : isConfirming ? 'Confirming...' : 'Add Child';
+
+  return (
+    <>
+      <AddChildModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onAddChild={handleAddChild}
+        isProcessing={isProcessing}
+        statusMessage={statusMessage}
+      />
+      <div className="container mx-auto px-6 py-8 text-white">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold">Family Members</h1>
+            <p className="text-slate-300">Manage parents and children in your wallet.</p>
+          </div>
+          <button onClick={() => setIsModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-xl transition-colors">
+            Add Member
+          </button>
+        </motion.div>
+
+        <div className="space-y-4">
+          {members.map((member) => (
+            <MemberRow key={member.address} {...member} />
+          ))}
+        </div>
+
+        {error && <p className="text-red-400 mt-4 text-center">Error adding child: {error.message}</p>}
+      </div>
+    </>
   );
 }
