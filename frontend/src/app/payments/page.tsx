@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, Store, AlertTriangle, Clock } from 'lucide-react';
 
 import FamilySharedWalletJSON from '@/abis/FamilySharedWallet.json';
+import { useRouter } from 'next/navigation';
 
 // --- TYPE DEFINITIONS ---
 const CATEGORIES = [
@@ -22,7 +23,9 @@ type Vendor = {
   address: `0x${string}`;
   category: CategoryName;
   isActive: boolean;
-  name: string; 
+  spendingLimit: bigint;
+  spentThisMonth: bigint;
+  name: string;
 };
 
 type UserLimits = {
@@ -75,21 +78,25 @@ function usePayments() {
     query: { enabled: !!vendorAddresses && (vendorAddresses as readonly `0x${string}`[]).length > 0 },
   });
 
-  const vendors = useMemo<Vendor[]>(() => {
+  const vendors = useMemo(() => {
     if (!vendorAddresses || !vendorDetails) return [];
-    return (vendorAddresses as `0x${string}`[]).map((address, index) => {
+
+    return (vendorAddresses as readonly `0x${string}`[]).map((address, index) => {
       const detail = vendorDetails[index];
       if (detail.status === 'success' && detail.result) {
-        const [categoryIndex, isActive] = detail.result as readonly [number, boolean];
+        // Now fetch all four returned tuple elements:
+        const [categoryIndex, isActive, spendingLimit, spentThisMonth] = detail.result as readonly [number, boolean, bigint, bigint];
         return {
           address,
           category: CATEGORIES[categoryIndex]?.name ?? 'Others',
           isActive,
-          name: `Vendor ${address.slice(0, 6)}...`, // Placeholder name
+          spendingLimit,
+          spentThisMonth,
+          name: `Vendor ${address.slice(0, 6)}...`,
         };
       }
       return null;
-    }).filter((v): v is Vendor => v !== null && v.isActive); // Only show active vendors
+    }).filter((v): v is Vendor & { spendingLimit: bigint; spentThisMonth: bigint } => v !== null && v.isActive);
   }, [vendorAddresses, vendorDetails]);
 
   const { data: userReport, isLoading: isLoadingReport, refetch: refetchLimits } = useReadContract({
@@ -127,6 +134,15 @@ export default function PaymentInterface() {
   const [isEmergency, setIsEmergency] = useState(false);
   const [hash, setHash] = useState<`0x${string}`>();
 
+  const { isConnected } = useAccount();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isConnected) {
+      router.push('/');
+    }
+  }, [isConnected, router]);
+
   const { writeContract, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
@@ -160,7 +176,18 @@ export default function PaymentInterface() {
     });
   };
 
-  const currentLimits = userLimits && selectedVendorDetails ? userLimits[selectedVendorDetails.category] : { limit: 0, spent: 0, remaining: 0 };
+  // Convert BigInt to number in ETH
+  const vendorLimit = selectedVendorDetails?.spendingLimit ? Number(formatEther(selectedVendorDetails.spendingLimit)) : 0;
+  const vendorSpent = selectedVendorDetails?.spentThisMonth ? Number(formatEther(selectedVendorDetails.spentThisMonth)) : 0;
+  const vendorRemaining = vendorLimit - vendorSpent;
+
+  // Use vendor limits for validation and display
+  const currentLimits = {
+    limit: vendorLimit,
+    spent: vendorSpent,
+    remaining: vendorRemaining,
+  };
+
   const canAfford = parseFloat(amount || '0') <= currentLimits.remaining;
   const isProcessing = isPending || isConfirming;
   const statusMessage = isPending ? 'Submitting...' : isConfirming ? 'Confirming...' : isEmergency ? 'Send Emergency Payment' : 'Send Payment';

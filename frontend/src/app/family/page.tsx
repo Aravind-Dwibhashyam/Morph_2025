@@ -6,19 +6,24 @@ import { isAddress } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
+import { useRouter } from 'next/navigation';
 
 
 type Member = {
   address: `0x${string}`;
   role: 'Parent' | 'Child';
+  onRemoveChild?: (childAddress: `0x${string}`) => void;
+  disableRemove?: boolean;
 };
 
 type AddChildModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onAddChild: (childAddress: `0x${string}`) => void;
-  isProcessing: boolean; // Combined state for pending and confirming
-  statusMessage: string; // To show detailed status
+  childAddress: string;
+  setChildAddress: (v: string) => void;
+  isProcessing: boolean;
+  statusMessage: string;
 };
 
 // --- HOOK: useFamilyMembers ---
@@ -77,8 +82,7 @@ function useFamilyMembers() {
 
 // --- UI COMPONENT: AddChildModal ---
 // A modal dialog for adding a new child's address.
-const AddChildModal = ({ isOpen, onClose, onAddChild, isProcessing, statusMessage }: AddChildModalProps) => {
-  const [childAddress, setChildAddress] = useState('');
+const AddChildModal = ({ isOpen, onClose, onAddChild, isProcessing, statusMessage, childAddress, setChildAddress }: AddChildModalProps) => {
   const [error, setError] = useState('');
 
   const handleSubmit = () => {
@@ -132,7 +136,7 @@ const AddChildModal = ({ isOpen, onClose, onAddChild, isProcessing, statusMessag
 
 // --- UI COMPONENT: MemberRow ---
 // Displays a single family member's information.
-const MemberRow = ({ address, role }: Member) => (
+const MemberRow = ({ address, role, onRemoveChild, disableRemove }: Member) => (
   <motion.div
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
@@ -147,7 +151,20 @@ const MemberRow = ({ address, role }: Member) => (
         <p className="text-sm text-slate-400 font-mono truncate">{address}</p>
       </div>
     </div>
-    <button className="text-slate-400 hover:text-white text-xl">...</button>
+
+    {role === 'Child' && onRemoveChild && (
+      <button
+        onClick={() => onRemoveChild(address)}
+        title="Remove Child"
+        className={`hover:cursor-pointer transition-transform ease-in-out hover:scale-110 ${
+          disableRemove ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        aria-label={`Remove child ${address}`}
+        disabled={disableRemove}
+      >
+        {'🗑️'}
+      </button>
+    )}
   </motion.div>
 );
 
@@ -158,6 +175,20 @@ export default function FamilyPage() {
   const { address: connectedAddress } = useAccount();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hash, setHash] = useState<`0x${string}`>();
+  const { writeContract: writeRemoveChild, isPending: isRemoving, error: removeError } = useWriteContract();
+  const [removeHash, setRemoveHash] = useState<`0x${string}`>();
+  const [childAddress, setChildAddress] = useState('');
+
+  const { isLoading: isRemovingConfirming, isSuccess: isRemovingConfirmed } = useWaitForTransactionReceipt({ hash: removeHash });
+
+  const { isConnected } = useAccount();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isConnected) {
+      router.push('/');
+    }
+  }, [isConnected, router]);
 
   const { writeContract, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
@@ -166,7 +197,8 @@ export default function FamilyPage() {
     if (isConfirmed) {
       refetchMembers();
       setIsModalOpen(false);
-      setHash(undefined); // Reset hash after success
+      setHash(undefined);
+      setChildAddress('');
     }
   }, [isConfirmed, refetchMembers]);
 
@@ -182,6 +214,27 @@ export default function FamilyPage() {
       onSuccess: (sentHash) => {
         setHash(sentHash);
       }
+    });
+  };
+
+  useEffect(() => {
+    if (isRemovingConfirmed) {
+      refetchMembers();
+      setRemoveHash(undefined);
+    }
+  }, [isRemovingConfirmed, refetchMembers]);
+
+  const handleRemoveChild = (childAddress: `0x${string}`) => {
+    if (!familyId) return;
+
+    writeRemoveChild({
+      account: connectedAddress,
+      address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
+      abi: FamilySharedWalletJSON.abi,
+      functionName: 'removeChildFromFamily',
+      args: [familyId, childAddress],
+    }, {
+      onSuccess: (sentHash) => setRemoveHash(sentHash)
     });
   };
 
@@ -211,6 +264,8 @@ export default function FamilyPage() {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onAddChild={handleAddChild}
+        childAddress={childAddress}
+        setChildAddress={setChildAddress}
         isProcessing={isProcessing}
         statusMessage={statusMessage}
       />
@@ -227,7 +282,12 @@ export default function FamilyPage() {
 
         <div className="space-y-4">
           {members.map((member) => (
-            <MemberRow key={member.address} {...member} />
+            <MemberRow
+            key={member.address}
+            {...member}
+            onRemoveChild={member.role === 'Child' ? handleRemoveChild : undefined}
+            disableRemove={isRemoving || isRemovingConfirming}
+            />
           ))}
         </div>
 

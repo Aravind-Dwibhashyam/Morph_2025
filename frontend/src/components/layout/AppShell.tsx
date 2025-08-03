@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import WalletInfo from '../ui/WalletInfo';
-import NetworkSwitcher from '../ui/NetworkSwitcher';
+import { useAccount } from "wagmi";
 
 const Header = () => {
   const pathname = usePathname();
@@ -12,8 +12,7 @@ const Header = () => {
     { name: 'Family', href: '/family' },
     { name: 'Vendor', href: '/vendors' },
     { name: 'Payments', href: '/payments' },
-    { name: 'Analytics', href: '/analytics' },
-    { name: 'Settings', href: '/settings' },
+    { name: 'Analytics', href: '/analytics' }
   ];
 
   return (
@@ -48,9 +47,10 @@ const Header = () => {
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { isConnected } = useAccount();
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <Header />
+      {isConnected && <Header />}
       <main>{children}</main>
     </div>
   );

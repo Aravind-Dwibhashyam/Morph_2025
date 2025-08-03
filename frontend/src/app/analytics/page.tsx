@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAccount, useReadContract, useReadContracts } from 'wagmi';
 import { motion } from 'framer-motion';
 import { BarChart3, PieChart, TrendingUp, Download } from 'lucide-react';
 import { Abi, formatEther } from 'viem';
 
 import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
+import { useRouter } from 'next/navigation';
 
 // --- TYPE DEFINITIONS ---
 const CATEGORIES = ["Food", "Education", "Entertainment", "Transport", "Others"] as const;
@@ -123,6 +124,15 @@ function useAnalyticsData() {
 export default function Analytics() {
   const { analyticsData, loading } = useAnalyticsData();
   const [selectedMember, setSelectedMember] = useState<string>('all');
+
+  const { isConnected } = useAccount();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isConnected) {
+      router.push('/');
+    }
+  }, [isConnected, router]);
 
   const processedData = useMemo(() => {
     if (!analyticsData) return null;
