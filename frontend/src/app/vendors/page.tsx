@@ -181,6 +181,7 @@ const AddVendorModal = ({ isOpen, onClose, onAddVendor, isProcessing, statusMess
 
 // --- PAGE: Vendors ---
 export default function Vendors() {
+  const { address: connectedAddress } = useAccount();
   const { vendors, familyId, loading, refetchVendors } = useFamilyVendors();
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -221,6 +222,7 @@ export default function Vendors() {
   const handleRemoveVendor = async (vendorAddress: `0x${string}`) => {
     if (!familyId) return;
     writeContract({
+      account: connectedAddress,
       address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`,
       abi: FamilySharedWalletJSON.abi,
       functionName: 'removeVendorFromFamily',
