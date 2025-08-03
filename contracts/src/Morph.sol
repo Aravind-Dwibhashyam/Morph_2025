@@ -24,6 +24,9 @@ contract FamilySharedWallet {
     struct VendorInfo {
         Category category;
         bool isActive;
+        uint128 spendingLimit;
+        uint128 spentThisMonth;
+        uint32 lastResetTime; 
     }
 
     struct CategorySpending {  
@@ -68,6 +71,7 @@ contract FamilySharedWallet {
     event ContractPaused();
     event ContractUnpaused();
     event FundsAdded(uint256 indexed familyId, address indexed from, uint256 amount);
+    event VendorLimitSet(uint256 indexed familyId, address indexed vendor, uint128 limit, address indexed setter);
 
     error OnlyParent();
     error OnlyChild();
@@ -248,7 +252,10 @@ contract FamilySharedWallet {
     function addVendorToFamily(uint256 familyId, address vendor, Category category) external validFamily(familyId) onlyParentInFamily(familyId) {
         familyVendors[familyId][vendor] = VendorInfo({
             category: category,
-            isActive: true
+            isActive: true,
+            spendingLimit: 0,
+            spentThisMonth: 0,
+            lastResetTime: uint32(block.timestamp)
         });
 
         families[familyId].approvedVendors.push(vendor);
@@ -272,6 +279,17 @@ contract FamilySharedWallet {
         emit VendorRemoved(familyId, vendor, msg.sender);
     }
 
+    function setVendorLimit(
+        uint256 familyId,
+        address vendor,
+        uint128 limit
+    ) external validFamily(familyId) onlyParentInFamily(familyId) {
+        if (!familyVendors[familyId][vendor].isActive) revert VendorNotFound();
+        familyVendors[familyId][vendor].spendingLimit = limit;
+        emit VendorLimitSet(familyId, vendor, limit, msg.sender);
+    }
+
+
     function makePayment(address vendor) external payable validAmount(msg.value) notPaused {
         uint256 familyId = userToFamily[msg.sender];
         require(families[familyId].familyBalance >= msg.value, "Insufficient family funds");
@@ -282,6 +300,17 @@ contract FamilySharedWallet {
 
         VendorInfo storage vendorInfo = familyVendors[familyId][vendor];
         if (!vendorInfo.isActive) revert NotApprovedVendor();
+
+        if (block.timestamp >= vendorInfo.lastResetTime + MONTH_DURATION) {
+            vendorInfo.spentThisMonth = 0;
+            vendorInfo.lastResetTime = uint32(block.timestamp);
+        }
+
+        // Check overall vendor limit
+        if (vendorInfo.spendingLimit > 0) {
+            if (vendorInfo.spentThisMonth + msg.value > vendorInfo.spendingLimit) revert ExceedsLimit();
+            vendorInfo.spentThisMonth += uint128(msg.value);
+        }
 
         Category category = vendorInfo.category;
         _resetLimitsIfNeeded(familyId, msg.sender);
@@ -370,7 +399,8 @@ contract FamilySharedWallet {
             uint32 createdAt,
             uint256 parentCount,
             uint256 childCount,
-            uint256 vendorCount
+            uint256 vendorCount,
+            uint256 familyBalance
         ) {
         Family storage family = families[familyId];
         return (
@@ -380,7 +410,8 @@ contract FamilySharedWallet {
             family.createdAt,
             family.parents.length,
             family.children.length,
-            family.approvedVendors.length
+            family.approvedVendors.length,
+            family.familyBalance
         );
     }
 
@@ -390,6 +421,12 @@ contract FamilySharedWallet {
 
     function getUserFamily(address user) external view returns (uint256) {
         return userToFamily[user];
+    }
+
+    function getVendorLimit(uint256 familyId, address vendor) external view returns (uint128 limit, uint128 spent) {
+        VendorInfo storage v = familyVendors[familyId][vendor];
+        limit = v.spendingLimit;
+        spent = v.spentThisMonth;
     }
 
     function pauseContract() external {
