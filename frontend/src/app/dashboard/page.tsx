@@ -57,6 +57,10 @@ type AddFundsModalProps = {
   statusMessage: string;
 };
 
+type DashboardProps = {
+  onFamilyCreated?: () => void;
+};
+
 const AddFundsModal = ({
   isOpen,
   onClose,
@@ -336,7 +340,7 @@ const CategoryItem = ({ name, spent, limit }: CategoryItemProps) => {
   );
 };
 
-export default function Dashboard() {
+export default function Dashboard({ onFamilyCreated } : DashboardProps) {
   const {
     familyData,
     loading,
@@ -390,6 +394,14 @@ export default function Dashboard() {
     }
   }, [isFundsConfirmed, refetchFamilyId]);
 
+  useEffect(() => {
+    if (isConfirmed) {
+      refetchFamilyId();
+      setHash(undefined);
+      if (onFamilyCreated) onFamilyCreated(); // Notify AppShell to update header
+    }
+  }, [isConfirmed, refetchFamilyId, onFamilyCreated]);
+
   const handleCreateFamily = () => {
     writeContract(
       {
@@ -404,6 +416,7 @@ export default function Dashboard() {
         },
       }
     );
+    window.location.reload();
   };
 
   const { address: connectedAddress } = useAccount();

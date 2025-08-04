@@ -36,6 +36,9 @@ type UserLimits = {
     }
 };
 
+type ChildProps = {
+  onFamilyCreated?: () => void;
+};
 
 // --- HOOK: usePayments ---
 function usePayments() {
@@ -127,7 +130,7 @@ function usePayments() {
 
 
 // --- PAGE: PaymentInterface ---
-export default function PaymentInterface() {
+export default function PaymentInterface({ onFamilyCreated } : ChildProps) {
   const { vendors, userLimits, familyId, loading, refetchLimits, userHasFamily } = usePayments();
   const [selectedVendor, setSelectedVendor] = useState<string>('');
   const [amount, setAmount] = useState<string>('');

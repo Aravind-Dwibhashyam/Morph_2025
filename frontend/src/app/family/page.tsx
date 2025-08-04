@@ -26,6 +26,10 @@ type AddChildModalProps = {
   statusMessage: string;
 };
 
+type ChildProps = {
+  onFamilyCreated?: () => void;
+};
+
 // --- HOOK: useFamilyMembers ---
 // This hook fetches and processes the list of family members from the smart contract.
 function useFamilyMembers() {
@@ -170,7 +174,7 @@ const MemberRow = ({ address, role, onRemoveChild, disableRemove }: Member) => (
 
 
 // --- PAGE: Family ---
-export default function FamilyPage() {
+export default function FamilyPage({ onFamilyCreated } : ChildProps) {
   const { members, familyId, loading, refetchMembers, userHasFamily } = useFamilyMembers();
   const { address: connectedAddress } = useAccount();
   const [isModalOpen, setIsModalOpen] = useState(false);

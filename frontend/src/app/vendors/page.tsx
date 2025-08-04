@@ -27,6 +27,10 @@ type Vendor = {
   name: string; // placeholder name as not stored on-chain
 };
 
+type ChildProps = {
+  onFamilyCreated?: () => void;
+};
+
 type AddVendorModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -298,7 +302,7 @@ const VendorLimitModal = ({
   );
 };
 
-export default function Vendors() {
+export default function Vendors({ onFamilyCreated } : ChildProps) {
   const { address: connectedAddress } = useAccount();
   const { vendors, familyId, loading, refetchVendors, userHasFamily } = useFamilyVendors();
   const [showAddForm, setShowAddForm] = useState(false);

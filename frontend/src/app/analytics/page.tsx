@@ -35,6 +35,10 @@ type ChildReportResult = {
     error?: Error;
 }
 
+type ChildProps = {
+  onFamilyCreated?: () => void;
+};
+
 // --- HOOK: useAnalyticsData ---
 function useAnalyticsData() {
   const { address: connectedAddress } = useAccount();
@@ -121,7 +125,7 @@ function useAnalyticsData() {
 }
 
 // --- PAGE: Analytics ---
-export default function Analytics() {
+export default function Analytics({ onFamilyCreated } : ChildProps) {
   const { analyticsData, loading } = useAnalyticsData();
   const [selectedMember, setSelectedMember] = useState<string>('all');
 
