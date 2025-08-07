@@ -5,11 +5,7 @@ import { motion } from 'framer-motion';
 import { useFamilyWallet } from '@/hooks/useContract';
 import { User, Bell, Shield, Palette, Globe, LogOut } from 'lucide-react';
 
-type ChildProps = {
-  onFamilyCreated?: () => void;
-};
-
-export default function Settings({ onFamilyCreated } : ChildProps) {
+export default function Settings() {
   const { userRole, familyData } = useFamilyWallet();
   const [activeTab, setActiveTab] = useState<string>('profile');
   const [notifications, setNotifications] = useState({

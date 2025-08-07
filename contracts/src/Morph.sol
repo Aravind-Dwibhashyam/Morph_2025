@@ -387,8 +387,8 @@ contract FamilySharedWallet {
         return families[familyId].parents;
     }
 
-    function getFamilyVendors(uint256 familyId) external view validFamily(familyId) onlyParentInFamily(familyId) returns (address[] memory) {
-        return families[familyId].approvedVendors;
+    function getFamilyVendors(uint256 familyId) external view validFamily(familyId) onlyFamilyMember(familyId) returns (address[] memory) {
+    return families[familyId].approvedVendors;
     }
 
     function getFamilyInfo(uint256 familyId) external view validFamily(familyId) onlyFamilyMember(familyId) 

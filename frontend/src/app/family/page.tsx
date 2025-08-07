@@ -6,7 +6,7 @@ import { isAddress } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
-import { useRouter } from 'next/navigation';
+
 
 
 type Member = {
@@ -24,10 +24,6 @@ type AddChildModalProps = {
   setChildAddress: (v: string) => void;
   isProcessing: boolean;
   statusMessage: string;
-};
-
-type ChildProps = {
-  onFamilyCreated?: () => void;
 };
 
 // --- HOOK: useFamilyMembers ---
@@ -174,7 +170,7 @@ const MemberRow = ({ address, role, onRemoveChild, disableRemove }: Member) => (
 
 
 // --- PAGE: Family ---
-export default function FamilyPage({ onFamilyCreated } : ChildProps) {
+export default function FamilyPage() {
   const { members, familyId, loading, refetchMembers, userHasFamily } = useFamilyMembers();
   const { address: connectedAddress } = useAccount();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -186,13 +182,6 @@ export default function FamilyPage({ onFamilyCreated } : ChildProps) {
   const { isLoading: isRemovingConfirming, isSuccess: isRemovingConfirmed } = useWaitForTransactionReceipt({ hash: removeHash });
 
   const { isConnected } = useAccount();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isConnected) {
-      router.push('/');
-    }
-  }, [isConnected, router]);
 
   const { writeContract, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });

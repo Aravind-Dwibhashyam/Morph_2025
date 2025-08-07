@@ -12,7 +12,7 @@ import { Abi, formatEther, parseEther } from 'viem';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
-import { useUserRole } from '@/hooks/useUserRole'; 
+import { useUserRole } from '../../hooks/useUserRole'; 
 
 // --- TYPE DEFINITIONS ---
 type StatsCardProps = {
@@ -28,7 +28,6 @@ type CategoryItemProps = {
   limit: number;
 };
 
-// Corrected CATEGORIES to be an array of objects, which fixes the type errors.
 const CATEGORIES = [
     { id: 0, name: "Food" },
     { id: 1, name: "Education" },
@@ -177,7 +176,7 @@ function useDashboardData() {
     });
 
     const { data: children, isLoading: isLoadingChildren, refetch: refetchChildren } = useReadContract({
-        account: connectedAddress,
+      
         address: contractAddress,
         abi: FamilySharedWalletABI,
         functionName: 'getFamilyChildren',

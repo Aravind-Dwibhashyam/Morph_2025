@@ -1,9 +1,12 @@
-// hooks/useUserRole.ts
-import { useEffect, useState } from "react";
-import { useAccount, useReadContract } from "wagmi";
-import contractABI from "@/abis/FamilySharedWallet.json";
-import { Abi } from "viem";
+'use client';
 
+import { useAccount, useReadContract } from "wagmi";
+import FamilySharedWalletJSON from "../abis/FamilySharedWallet.json";
+import { Abi } from "viem";
+import { useMemo } from "react";
+
+// --- TYPE DEFINITIONS ---
+// Defines the structure of the UserBudget struct returned by the smart contract.
 interface UserBudgetStruct {
   isChild: boolean;
   isActive: boolean;
@@ -12,80 +15,85 @@ interface UserBudgetStruct {
   totalSpent: bigint;
 }
 
-export function useUserRole(contractAddress: `0x${string}`) {
-  const { address } = useAccount();
+// --- HOOK: useUserRole ---
+// This hook determines the role ('parent', 'child', or null) of the connected user within a family.
+export function useUserRole() {
+  const { address: connectedAddress } = useAccount();
+  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+  const FamilySharedWalletABI = FamilySharedWalletJSON.abi as Abi;
 
-  // 1. Fetch familyId for current user
-  const {
-    data: familyIdRaw,
-    isLoading: loadingFamId,
-    error: errorFamId,
-  } = useReadContract({
+  // 1. Fetch the family ID for the current user.
+  const { data: familyId, isLoading: isLoadingFamilyId } = useReadContract({
+    account: connectedAddress,
     address: contractAddress,
-    abi: contractABI.abi as Abi,   // wagmi/viem expects ABI array, not { abi: [...] }
+    abi: FamilySharedWalletABI,
     functionName: "getUserFamily",
-    args: [address],
-    query: { enabled: !!address },
+    args: [connectedAddress],
+    query: { enabled: !!connectedAddress },
   });
 
-  // 2. If familyId exists (and >0), check isParent
-  const {
-    data: isParent,
-    isLoading: loadingIsParent,
-    error: errorIsParent,
-  } = useReadContract({
+  // 2. Check if the user is a parent, but only if a valid family ID has been found.
+  const { data: isParent, isLoading: isLoadingIsParent } = useReadContract({
+    account: connectedAddress,
     address: contractAddress,
-    abi: contractABI.abi as Abi,
+    abi: FamilySharedWalletABI,
     functionName: "familyParents",
-    args: familyIdRaw && address ? [familyIdRaw, address] : undefined,
+    args: familyId && connectedAddress ? [familyId, connectedAddress] : undefined,
     query: {
-      enabled: !!address && !!familyIdRaw && BigInt(familyIdRaw as any) > BigInt(0),
+      enabled: !!connectedAddress && !!familyId && Number(familyId) > 0,
     },
   });
 
-  // 3. If not parent, check child's budget struct (to know if child & active)
-  const {
-    data: userBudget,
-    isLoading: loadingBudget,
-    error: errorBudget,
-  } = useReadContract({
+  // 3. If the parent check is complete and the user is NOT a parent, check if they are a child.
+  const { data: userBudget, isLoading: isLoadingBudget } = useReadContract({
+    account: connectedAddress,
     address: contractAddress,
-    abi: contractABI.abi as Abi,
+    abi: FamilySharedWalletABI,
     functionName: "familyUsers",
-    args: familyIdRaw && address ? [familyIdRaw, address] : undefined,
+    args: familyId && connectedAddress ? [familyId, connectedAddress] : undefined,
     query: {
-      enabled:
-        !!address &&
-        !!familyIdRaw &&
-        BigInt(familyIdRaw as any) > BigInt(0) &&
-        isParent === false,
+      enabled: !!connectedAddress && !!familyId && Number(familyId) > 0 && isParent === false,
     },
   });
 
-  // -------- Logic to set role --------
-  let role: "parent" | "child" | null | "loading" = "loading";
-  let familyId: number | null = null;
-  const userBudgetTyped = userBudget as UserBudgetStruct;
+  // 4. Determine the role based on the results of the contract calls.
+  const role: "parent" | "child" | null | "loading" = useMemo(() => {
+    if (isLoadingFamilyId) {
+      return "loading";
+    }
 
-  if (loadingFamId || loadingIsParent || loadingBudget) {
-    role = "loading";
-  } else if (
-    !address ||
-    !familyIdRaw ||
-    (BigInt(familyIdRaw as any) === BigInt(0))
-  ) {
-    role = null;
-    familyId = null;
-  } else if (isParent) {
-    role = "parent";
-    familyId = Number(familyIdRaw);
-  } else if (userBudget && userBudgetTyped.isChild && userBudgetTyped.isActive) {
-    role = "child";
-    familyId = Number(familyIdRaw);
-  } else {
-    role = null;
-    familyId = Number(familyIdRaw);
-  }
+    if (!familyId || Number(familyId) === 0) {
+      return null; // Not in a family
+    }
 
-  return { role, familyId };
+    if (isLoadingIsParent) {
+        return "loading";
+    }
+
+    if (isParent) {
+      return "parent";
+    }
+
+    // If the user is NOT a parent, we must wait for the child status check to complete.
+    if (isParent === false && isLoadingBudget) {
+        return "loading";
+    }
+
+    // The useReadContract hook returns an array for structs. We destructure it here.
+    const userBudgetArray = userBudget as readonly [boolean, boolean, number, bigint, bigint] | undefined;
+    if (userBudgetArray) {
+        const [isChild, isActive] = userBudgetArray;
+        if (isChild && isActive) {
+            return "child";
+        }
+    }
+
+    // If none of the above, the user is in a family but has no active role.
+    return null; 
+  }, [familyId, isParent, userBudget, isLoadingFamilyId, isLoadingIsParent, isLoadingBudget]);
+
+  // As requested, log the role to the console for debugging.
+  console.log("User Role:", role);
+
+  return { role, familyId: familyId ? Number(familyId) : null };
 }

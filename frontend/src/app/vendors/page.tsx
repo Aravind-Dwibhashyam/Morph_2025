@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Store, Search, Shield } from 'lucide-react';
 
 import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
-import { useRouter } from 'next/navigation';
+
 
 const CATEGORIES = ['Food', 'Education', 'Entertainment', 'Transport', 'Others'] as const;
 type Category = typeof CATEGORIES[number];
@@ -25,10 +25,6 @@ type Vendor = {
   spendingLimit: bigint;
   spentThisMonth: bigint;
   name: string; // placeholder name as not stored on-chain
-};
-
-type ChildProps = {
-  onFamilyCreated?: () => void;
 };
 
 type AddVendorModalProps = {
@@ -174,7 +170,7 @@ const AddVendorModal = ({
                   required
                   value={category}
                   onChange={(e) => setCategory(Number(e.target.value))}
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-black focus:outline-none focus:border-blue-500"
                   disabled={isProcessing}
                 >
                   <option value="" disabled>
@@ -302,7 +298,7 @@ const VendorLimitModal = ({
   );
 };
 
-export default function Vendors({ onFamilyCreated } : ChildProps) {
+export default function Vendors() {
   const { address: connectedAddress } = useAccount();
   const { vendors, familyId, loading, refetchVendors, userHasFamily } = useFamilyVendors();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -311,13 +307,7 @@ export default function Vendors({ onFamilyCreated } : ChildProps) {
   const [editVendor, setEditVendor] = useState<Vendor | null>(null);
 
   const { isConnected } = useAccount();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!isConnected) {
-      router.push('/');
-    }
-  }, [isConnected, router]);
 
   const { writeContract, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });

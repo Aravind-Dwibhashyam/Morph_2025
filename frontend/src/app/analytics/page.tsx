@@ -7,7 +7,6 @@ import { BarChart3, PieChart, TrendingUp, Download } from 'lucide-react';
 import { Abi, formatEther } from 'viem';
 
 import FamilySharedWalletJSON from '../../abis/FamilySharedWallet.json';
-import { useRouter } from 'next/navigation';
 
 // --- TYPE DEFINITIONS ---
 const CATEGORIES = ["Food", "Education", "Entertainment", "Transport", "Others"] as const;
@@ -34,10 +33,6 @@ type ChildReportResult = {
     result?: readonly [readonly bigint[], readonly bigint[], readonly bigint[]];
     error?: Error;
 }
-
-type ChildProps = {
-  onFamilyCreated?: () => void;
-};
 
 // --- HOOK: useAnalyticsData ---
 function useAnalyticsData() {
@@ -125,18 +120,12 @@ function useAnalyticsData() {
 }
 
 // --- PAGE: Analytics ---
-export default function Analytics({ onFamilyCreated } : ChildProps) {
+export default function Analytics() {
   const { analyticsData, loading } = useAnalyticsData();
   const [selectedMember, setSelectedMember] = useState<string>('all');
 
   const { isConnected } = useAccount();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!isConnected) {
-      router.push('/');
-    }
-  }, [isConnected, router]);
 
   const processedData = useMemo(() => {
     if (!analyticsData) return null;

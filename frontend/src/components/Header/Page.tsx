@@ -3,26 +3,26 @@
 import React, { useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation'; // Using next/navigation for client components
+import { useRouter, usePathname } from 'next/navigation'; // Make sure to import usePathname
 
 // --- PAGE: HomePage ---
 // This serves as the main landing page for the application.
 export default function HomePage() {
   const { isConnected } = useAccount();
   const router = useRouter();
+  const pathname = usePathname(); // Get the current URL path
 
-  // useEffect is the correct place for side effects like navigation.
-  // This effect will run after the component renders, and whenever isConnected or router changes.
+  // This effect now correctly handles the redirect logic.
   useEffect(() => {
-    // If the user is connected, redirect them straight to the dashboard.
-    if (isConnected) {
+    // **THE FIX**: Only redirect if the user is connected AND is currently on the homepage (`/`).
+    // This prevents the redirect from happening when you navigate to other pages like /payment.
+    if (isConnected && pathname === '/') {
       router.push('/dashboard');
     }
-  }, [isConnected, router]);
+  }, [isConnected, router, pathname]); // Add pathname to the dependency array
 
-  // If the user is connected, we can render a loading/redirecting message
-  // while the useEffect hook prepares to navigate.
-  if (isConnected) {
+  // This loading message will now only show when redirecting from the homepage.
+  if (isConnected && pathname === '/') {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-purple-900 text-white">
             <p>Connecting, redirecting to dashboard...</p>
@@ -30,7 +30,13 @@ export default function HomePage() {
     );
   }
 
-  // If not connected, show the landing page content.
+  // If the user is on any page other than the homepage while connected, this component will render nothing,
+  // preventing it from interfering with other pages.
+  if (isConnected && pathname !== '/') {
+      return null;
+  }
+
+  // If not connected, render the landing page content.
   return (
     <div className="min-h-screen flex flex-col items-center justify-center text-white p-4 text-center bg-gradient-to-br from-slate-900 to-purple-900">
       <motion.div
