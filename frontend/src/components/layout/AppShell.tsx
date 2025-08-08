@@ -3,7 +3,9 @@
 import React, { useState } from 'react';
 import { useAccount, useSwitchChain, useChains, useChainId, useDisconnect } from 'wagmi';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useUserRole } from '@/hooks/useUserRole'; // Assuming the hook is located here
+import { useUserRole } from '@/hooks/useUserRole';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 
 // --- UI COMPONENT: NetworkSwitcher ---
 const NetworkSwitcher = () => {
@@ -109,7 +111,7 @@ const WalletInfo = () => {
 
 // --- UI COMPONENT: Header ---
 const Header = () => {
-    const { role } = useUserRole();
+    const { role } = useUserRole(process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`);
 
     const allLinks = [
       { name: 'Dashboard', href: '/dashboard', roles: ['parent', 'child'] },
@@ -120,6 +122,7 @@ const Header = () => {
     ];
 
     const navLinks = allLinks.filter(link => role && link.roles.includes(role));
+    const pathname = usePathname();
   
     return (
       <header className="sticky top-0 z-40 w-full bg-slate-900/70 backdrop-blur-lg border-b border-slate-300/10">
@@ -130,15 +133,22 @@ const Header = () => {
                 FamilyWallet
               </a>
               <nav className="hidden md:flex gap-6">
-                {navLinks.map((link) => (
-                  <a
-                    key={link.name}
-                    href={link.href}
-                    className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
-                  >
-                    {link.name}
-                  </a>
-                ))}
+                {navLinks.map((link) => {
+                  const isActive = pathname === link.href;
+                  return (
+                    <Link
+                      key={link.name}
+                      href={link.href}
+                      className={`text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'text-white font-bold border-b-3 border-purple-400'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {link.name}
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
             <div className="flex items-center gap-4">
@@ -153,9 +163,12 @@ const Header = () => {
 
 // --- LAYOUT: AppShell ---
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const hideHeaderOn = ['/']; // homepage
+  const shouldShowHeader = !hideHeaderOn.includes(pathname);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <Header />
+        {shouldShowHeader && <Header />}
         <main>
             {children}
         </main>

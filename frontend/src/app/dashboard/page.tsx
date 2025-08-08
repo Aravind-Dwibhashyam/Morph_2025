@@ -163,9 +163,9 @@ const SetLimitModal = ({ isOpen, onClose, onSetLimit, isProcessing, statusMessag
 // --- HOOK: useDashboardData ---
 function useDashboardData() {
     const { address: connectedAddress } = useAccount();
-    const { role, familyId } = useUserRole();
     const FamilySharedWalletABI = FamilySharedWalletJSON.abi as Abi;
     const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
+    const { role, familyId } = useUserRole(contractAddress);
 
     const { data: familyInfo, isLoading: isLoadingFamilyInfo, refetch: refetchFamilyData } = useReadContract({
         account: connectedAddress,
@@ -268,7 +268,7 @@ const CategoryItem = ({ name, spent, limit }: CategoryItemProps) => {
 
 export default function Dashboard() {
   const { familyData, loading, userHasFamily, familyId, children, refetchDashboardData } = useDashboardData();
-  const { role } = useUserRole();
+  const { role } = useUserRole(process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`);
   const [createFamilyHash, setCreateFamilyHash] = useState<`0x${string}`>();
   const [addFundsHash, setAddFundsHash] = useState<`0x${string}`>();
   const [setLimitHash, setSetLimitHash] = useState<`0x${string}`>();
