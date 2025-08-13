@@ -1,13 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
+  // Move turbo config to turbopack (Turbopack is now stable)
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
       },
     },
   },
@@ -18,9 +17,9 @@ const nextConfig: NextConfig = {
   },
   // Enable static exports for better performance
   output: 'standalone',
-  // Disable telemetry
-  telemetry: false,
-  // Optimize images
+  // Remove telemetry key as it's not recognized in Next.js 15
+  // Telemetry is disabled by default in production builds
+  // Optimize images telemetry:False,
   images: {
     unoptimized: true
   }
