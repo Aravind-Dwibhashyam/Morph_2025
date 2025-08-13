@@ -165,7 +165,7 @@ function useDashboardData() {
     const { address: connectedAddress } = useAccount();
     const FamilySharedWalletABI = FamilySharedWalletJSON.abi as Abi;
     const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
-    const { role, familyId } = useUserRole(contractAddress);
+    const { role, familyId } = useUserRole();
 
     const { data: familyInfo, isLoading: isLoadingFamilyInfo, refetch: refetchFamilyData } = useReadContract({
         account: connectedAddress,
@@ -268,7 +268,7 @@ const CategoryItem = ({ name, spent, limit }: CategoryItemProps) => {
 
 export default function Dashboard() {
   const { familyData, loading, userHasFamily, familyId, children, refetchDashboardData } = useDashboardData();
-  const { role } = useUserRole(process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`);
+  const { role } = useUserRole();
   const [createFamilyHash, setCreateFamilyHash] = useState<`0x${string}`>();
   const [addFundsHash, setAddFundsHash] = useState<`0x${string}`>();
   const [setLimitHash, setSetLimitHash] = useState<`0x${string}`>();
@@ -322,7 +322,7 @@ export default function Dashboard() {
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold text-white mb-2">Welcome back! 👋</h1>
-            <p className="text-slate-300">Here's your family's financial overview.</p>
+            <p className="text-slate-300">Here&apos;s your family&apos;s financial overview.</p>
           </div>
           {role === 'parent' && (
             <div className="flex gap-4">

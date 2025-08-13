@@ -111,7 +111,7 @@ const WalletInfo = () => {
 
 // --- UI COMPONENT: Header ---
 const Header = () => {
-    const { role } = useUserRole(process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`);
+    const { role } = useUserRole();
 
     const allLinks = [
       { name: 'Dashboard', href: '/dashboard', roles: ['parent', 'child'] },
